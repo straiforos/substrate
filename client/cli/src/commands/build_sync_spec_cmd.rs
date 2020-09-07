@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::error;
-use crate::params::{SharedParams, NetworkParams};
+use crate::params::{SharedParams, NetworkParams, ImportParams};
 use crate::CliConfiguration;
 use log::info;
 use sc_network::config::build_multiaddr;
@@ -57,6 +57,10 @@ pub struct BuildSyncSpecCmd {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub network_params: NetworkParams,
+
+	#[allow(missing_docs)]
+	#[structopt(flatten)]
+	pub import_params: ImportParams,
 }
 
 impl BuildSyncSpecCmd {
@@ -109,5 +113,9 @@ impl CliConfiguration for BuildSyncSpecCmd {
 
 	fn network_params(&self) -> Option<&NetworkParams> {
 		Some(&self.network_params)
+	}
+
+	fn import_params(&self) -> Option<&ImportParams> {
+		Some(&self.import_params)
 	}
 }
