@@ -42,7 +42,7 @@ use sc_network::NetworkService;
 use parking_lot::RwLock;
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{
-	Block as BlockT, SaturatedConversion, HashFor, Zero, BlockIdTo,
+	Block as BlockT, Header as HeaderT, SaturatedConversion, HashFor, Zero, BlockIdTo,
 };
 use sp_api::{ProvideRuntimeApi, CallApiAt};
 use sc_executor::{NativeExecutor, NativeExecutionDispatch, RuntimeInfo};
@@ -328,10 +328,17 @@ pub fn new_light_parts<TBl, TRtApi, TExecDisp>(
 		let sync_state = sc_chain_spec::LightSyncState::<TBl>::from_serializable(sync_state)
 			.map_err(|err| err.to_string())?;
 
+		log::info!("Importing block {:?} ({:?})", sync_state.header.hash(), sync_state.header.number());
 		let origin = sp_consensus::BlockOrigin::File;
-		let block_import_params = sp_consensus::BlockImportParams::new(origin, sync_state.header);
-		log::info!("Importing block");
-		client.import_block(block_import_params, HashMap::new())?;
+		let mut block_import_params = sp_consensus::BlockImportParams::new(origin, sync_state.header);
+		block_import_params.allow_missing_parent = true;
+		block_import_params.finalized = true;
+		block_import_params.fork_choice = Some(sp_consensus::ForkChoiceStrategy::LongestChain);
+		let res = client.import_block(block_import_params, HashMap::new())?;
+		assert!(match res {
+			sp_consensus::ImportResult::Imported(_) => true,
+			_ => false
+		});
 	}
 
 	Ok((client, backend, keystore, task_manager, on_demand))
