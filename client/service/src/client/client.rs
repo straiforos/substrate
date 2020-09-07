@@ -696,6 +696,8 @@ impl<B, E, Block, RA> Client<B, E, Block, RA> where
 		<Self as ProvideRuntimeApi<Block>>::Api: CoreApi<Block, Error = Error> +
 				ApiExt<Block, StateBackend = B::State>,
 	{
+		operation.op.allow_missing_parent(allow_missing_parent);
+		
 		let parent_hash = import_headers.post().parent_hash().clone();
 		let status = self.backend.blockchain().status(BlockId::Hash(hash))?;
 		match (import_existing, status) {

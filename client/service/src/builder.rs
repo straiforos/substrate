@@ -44,7 +44,7 @@ use sp_runtime::generic::BlockId;
 use sp_runtime::traits::{
 	Block as BlockT, Header as HeaderT, SaturatedConversion, HashFor, Zero, BlockIdTo,
 };
-use sp_api::{ProvideRuntimeApi, CallApiAt};
+use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sc_executor::{NativeExecutor, NativeExecutionDispatch, RuntimeInfo};
 use std::{collections::HashMap, sync::Arc};
 use wasm_timer::SystemTime;
@@ -324,21 +324,23 @@ pub fn new_light_parts<TBl, TRtApi, TExecDisp>(
 		config.prometheus_config.as_ref().map(|config| config.registry.clone()),
 	)?);
 
-	if let Some(sync_state) = config.chain_spec.get_light_sync_state() {
-		let sync_state = sc_chain_spec::LightSyncState::<TBl>::from_serializable(sync_state)
-			.map_err(|err| err.to_string())?;
+	if client.chain_info().best_number == NumberFor::<TBl>::zero() {
+		if let Some(sync_state) = config.chain_spec.get_light_sync_state() {
+			let sync_state = sc_chain_spec::LightSyncState::<TBl>::from_serializable(sync_state)
+				.map_err(|err| err.to_string())?;
 
-		log::info!("Importing block {:?} ({:?})", sync_state.header.hash(), sync_state.header.number());
-		let origin = sp_consensus::BlockOrigin::File;
-		let mut block_import_params = sp_consensus::BlockImportParams::new(origin, sync_state.header);
-		block_import_params.allow_missing_parent = true;
-		block_import_params.finalized = true;
-		block_import_params.fork_choice = Some(sp_consensus::ForkChoiceStrategy::LongestChain);
-		let res = client.import_block(block_import_params, HashMap::new())?;
-		assert!(match res {
-			sp_consensus::ImportResult::Imported(_) => true,
-			_ => false
-		});
+			log::info!("Importing block {:?} ({:?})", sync_state.header.hash(), sync_state.header.number());
+			let origin = sp_consensus::BlockOrigin::File;
+			let mut block_import_params = sp_consensus::BlockImportParams::new(origin, sync_state.header);
+			block_import_params.allow_missing_parent = true;
+			block_import_params.finalized = true;
+			block_import_params.fork_choice = Some(sp_consensus::ForkChoiceStrategy::LongestChain);
+			let res = client.import_block(block_import_params, HashMap::new())?;
+			assert!(match res {
+				sp_consensus::ImportResult::Imported(_) => true,
+				_ => false
+			});
+		}
 	}
 
 	Ok((client, backend, keystore, task_manager, on_demand))
