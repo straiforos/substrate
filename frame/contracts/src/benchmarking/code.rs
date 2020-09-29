@@ -29,6 +29,7 @@ use crate::Module as Contracts;
 
 use parity_wasm::elements::{Instruction, Instructions, FuncBody, ValueType, BlockType};
 use sp_runtime::traits::Hash;
+use sp_sandbox::{EnvironmentDefinitionBuilder, Memory};
 use sp_std::{prelude::*, convert::TryFrom};
 
 /// Pass to `create_code` in order to create a compiled `WasmModule`.
@@ -57,6 +58,7 @@ pub struct DataSegment {
 	pub value: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct ImportedMemory {
 	pub min_pages: u32,
 	pub max_pages: u32,
@@ -80,6 +82,7 @@ pub struct ImportedFunction {
 pub struct WasmModule<T:Trait> {
 	pub code: Vec<u8>,
 	pub hash: <T::Hashing as Hash>::Output,
+	memory: Option<ImportedMemory>,
 }
 
 impl<T: Trait> From<ModuleDefinition> for WasmModule<T> {
@@ -107,7 +110,7 @@ impl<T: Trait> From<ModuleDefinition> for WasmModule<T> {
 			.export().field("call").internal().func(func_offset + 1).build();
 
 		// Grant access to linear memory.
-		if let Some(memory) = def.memory {
+		if let Some(memory) = &def.memory {
 			contract = contract.import()
 				.module("env").field("memory")
 				.external().memory(memory.min_pages, Some(memory.max_pages))
@@ -140,7 +143,8 @@ impl<T: Trait> From<ModuleDefinition> for WasmModule<T> {
 		let hash = T::Hashing::hash(&code);
 		Self {
 			code,
-			hash
+			hash,
+			memory: def.memory,
 		}
 	}
 }
@@ -215,6 +219,25 @@ impl<T: Trait> WasmModule<T> {
 			.. Default::default()
 		}
 		.into()
+	}
+
+	pub fn repeated(repeat: u32, instructions: &[Instruction]) -> Self {
+		ModuleDefinition {
+			call_body: Some(body::repeated(repeat, instructions)),
+			.. Default::default()
+		}
+		.into()
+	}
+
+	pub fn add_memory<S>(&self, env: &mut EnvironmentDefinitionBuilder<S>) -> Option<Memory> {
+		let memory = if let Some(memory) = &self.memory {
+			memory
+		} else {
+			return None;
+		};
+		let memory = Memory::new(memory.min_pages, Some(memory.max_pages)).unwrap();
+		env.add_memory("env", "memory", memory.clone());
+		Some(memory)
 	}
 }
 

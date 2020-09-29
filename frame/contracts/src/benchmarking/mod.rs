@@ -20,14 +20,16 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 mod code;
+mod sandbox;
 
 use crate::*;
 use crate::Module as Contracts;
 use crate::exec::StorageKey;
-use crate::schedule::API_BENCHMARK_BATCH_SIZE;
+use crate::schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE};
 use self::code::{
 	body, ModuleDefinition, DataSegment, ImportedMemory, ImportedFunction, WasmModule,
 };
+use self::sandbox::Sandbox;
 
 use frame_benchmarking::{benchmarks, account, whitelisted_caller};
 use frame_system::{Module as System, RawOrigin};
@@ -37,6 +39,9 @@ use sp_std::{default::Default, convert::{TryInto}};
 
 /// How many batches we do per API benchmark.
 const API_BENCHMARK_BATCHES: u32 = 20;
+
+/// How many batches we do per Instruction benchmark.
+const INSTR_BENCHMARK_BATCHES: u32 = 1;
 
 /// An instantiated and deployed contract.
 struct Contract<T: Trait> {
@@ -273,7 +278,7 @@ benchmarks! {
 		let endowment = Config::<T>::subsistence_threshold_uncached();
 		let caller = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, caller_funding::<T>());
-		let WasmModule { code, hash } = WasmModule::<T>::dummy();
+		let WasmModule { code, hash, .. } = WasmModule::<T>::dummy();
 		let origin = RawOrigin::Signed(caller.clone());
 		let addr = T::DetermineContractAddress::contract_address_for(&hash, &data, &caller);
 		Contracts::<T>::put_code_raw(code)?;
@@ -1578,6 +1583,15 @@ benchmarks! {
 		), vec![], Endow::Max)?;
 		let origin = RawOrigin::Signed(instance.caller.clone());
 	}: call(origin, instance.addr, 0.into(), Weight::max_value(), vec![])
+
+	instr_nop {
+		let r in 0 .. INSTR_BENCHMARK_BATCHES;
+		let mut sbox = Sandbox::from(&WasmModule::<T>::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+			Instruction::Nop,
+		]));
+	}: {
+		sbox.invoke();
+	}
 }
 
 #[cfg(test)]
@@ -1644,4 +1658,5 @@ mod tests {
 	create_test!(seal_hash_blake2_256_per_kb);
 	create_test!(seal_hash_blake2_128);
 	create_test!(seal_hash_blake2_128_per_kb);
+	create_test!(instr_nop);
 }
